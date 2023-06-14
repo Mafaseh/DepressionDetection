@@ -1,14 +1,18 @@
 import pandas as pd
 from collections import Counter
 from dataset.utils import get_data, labels
-
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LogisticRegression
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics import accuracy_score
+from imblearn.over_sampling import SMOTE
+import numpy as np
 
 dev_probability = {
     'severe': 0.09,
     'moderate': 0.51,
     'not depression': 0.4
 }
-
 
 def preprocess(with_test=False):
     train = get_data('train')
@@ -45,7 +49,22 @@ def preprocess(with_test=False):
     if with_test:
         test = get_data('test')
         statistics('test', test)
+        test_features = vectorizer.transform(test['text'])
+        test_labels = test['labels']
+
+        # Preprocess test dataset
+        test_dataset = []
+        for idx, row in test.iterrows():
+            pid = row['pid']
+            text = row['text']
+            label = row['labels']
+            test_dataset.append([pid, text, label])
+
+        test = pd.DataFrame(test_dataset, columns=['pid', 'text', 'labels'])
+        print_stats('Test after preprocessing', test)
         test.to_csv('../data/preprocessed_dataset/test.csv', index=False)
+
+        calculate_accuracy(train_features, train_labels, dev_features, dev_labels, test_features, test_labels)
 
 
 def statistics(data_split, dataset):
@@ -71,5 +90,42 @@ def print_stats(description, dataset):
     print('-------------------------------------')
 
 
+def calculate_accuracy(train_features, train_labels, dev_features, dev_labels, test_features, test_labels):
+    combined_features = np.concatenate((train_features.toarray(), dev_features.toarray()), axis=0)
+    combined_labels = np.concatenate((train_labels, dev_labels), axis=0)
+
+    # Split the combined dataset into training and testing sets
+    train_data, test_data, train_labels, test_labels = train_test_split(combined_features, combined_labels,
+                                                                        test_size=0.2, random_state=42)
+
+    # Perform oversampling using SMOTE to address class imbalance
+    oversampler = SMOTE(random_state=42)
+    train_data, train_labels = oversampler.fit_resample(train_data, train_labels)
+
+    # Train a Logistic Regression classifier
+    model = LogisticRegression(random_state=42, max_iter=1000)  # Set max_iter to 1000 for convergence
+    model.fit(train_data, train_labels)
+
+    # Make predictions on the test data
+    predictions = model.predict(test_data)
+
+    # Calculate accuracy
+    accuracy = accuracy_score(test_labels, predictions)
+    print(f'Accuracy: {accuracy}')
+
+
 if __name__ == '__main__':
-    preprocess()
+    train = get_data('train')
+    statistics('train', train)
+
+    dev = get_data('dev')
+    statistics('dev', dev)
+
+    vectorizer = TfidfVectorizer()
+    train_features = vectorizer.fit_transform(train['text'])
+    train_labels = train['labels']
+
+    dev_features = vectorizer.transform(dev['text'])
+    dev_labels = dev['labels']
+
+    preprocess(with_test=True)

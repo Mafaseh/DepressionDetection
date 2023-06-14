@@ -83,13 +83,15 @@ def get_texts_from_reddit_mental_health_dataset(unique_texts, stats):
 
 
 def get_texts_from_reddit_depression_suicidewatch(unique_texts, stats):
-    reddit_depression_suicidewatch = '../data/reddit_depression_corpora/reddit_depression_suicidewatch.csv'
+    reddit_depression_suicidewatch = 'C:\\Users\\kinan\\PycharmProjects\\depression-detection-lt-edi-2022-main\\data\\reddit_depression_corpora\\reddit_depression_suicidewatch.csv'
 
     if os.path.exists(reddit_depression_suicidewatch):
         df = pd.read_csv(reddit_depression_suicidewatch, header=0)
         for idx, row in df.iterrows():
             text = clean_text(row["text"])
             label = row["label"]
+            if label.lower() not in stats:
+                stats[label.lower()] = 0
             if text not in unique_texts:
                 stats[label.lower()] += 1
                 unique_texts.add(text)
